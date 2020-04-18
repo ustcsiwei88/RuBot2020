@@ -1,0 +1,10 @@
+[submodule "ARIAC"]
+	path = ARIAC
+	url = https://github.com/usnistgov/ARIAC.git
+[submodule "src/ARIAC"]
+	path = src/ARIAC
+	url = https://github.com/usnistgov/ARIAC.git
+[submodule "src/ariac-gazebo_ros_pkgs"]
+	path = src/ariac-gazebo_ros_pkgs
+	url = https://github.com/osrf/ariac-gazebo_ros_pkgs
+	branch = ariac-network-melodic
