@@ -37,9 +37,6 @@
 #define MAIN_FILE
 using namespace std;
 
-// vector<double> kinematic(vector<double> theta);
-// vector<double> invkinematic(vector<double> pose);
-// vector<double> invkinematic_belt(vector<double> pose);
 int inverse(const double* T, double* q_sols, double q6_des);
 
 
@@ -166,42 +163,49 @@ public:
       0, 1, 0, 0,
       0, 0, 1, 0.1,
     };
+    vector<double> part_height{0.017, 0.015, 0.005, 0.07}; // gasket gear piston rod pulley
     
-    inverse(T, q_sol_belt_1[0], 0);
-    T[3] = 1.085;
-    inverse(T, q_sol_belt_1[1], 0);
-    inverse(T, q_sol_belt_1[2], 0);
-    T[3] = 0.8;
-    inverse(T, q_sol_belt_1[3], 0);
+    for(int i=0;i<4;i++){
+      T[3] = 0.95;
+      inverse(T, q_sol_belt_1[i][0], 0);
+      T[3] = 1.085 - part_height[i];
+      inverse(T, q_sol_belt_1[i][1], 0);
+      inverse(T, q_sol_belt_1[i][2], 0);
+      T[3] = 0.8;
+      inverse(T, q_sol_belt_1[i][3], 0);
+    }
 
-    
-    T[3] =  1.0;
-    inverse(T, q_sol_bin_1[0], 0);
-    T[3] = 1.26;
-    inverse(T, q_sol_bin_1[1], 0);
-    inverse(T, q_sol_bin_1[2], 0);
-    T[3] = 0.8;
-    inverse(T, q_sol_bin_1[3], 0);
-
+    for(int i=0;i<4;i++){
+      T[3] = 1.0;
+      inverse(T, q_sol_bin_1[i][0], 0);
+      T[3] = 1.26 - part_height[i];
+      inverse(T, q_sol_bin_1[i][1], 0);
+      inverse(T, q_sol_bin_1[i][2], 0);
+      T[3] = 0.8;
+      inverse(T, q_sol_bin_1[i][3], 0);
+    }
     // neg x and z for right arm
     T[0] = -1;
     T[10] = -1;
+    for(int i=0;i<4;i++){
+      T[3] = -0.95;
+      inverse(T, q_sol_belt_2[i][0], 0);
+      T[3] = -1.085 + part_height[i];
+      inverse(T, q_sol_belt_2[i][1], 0);
+      inverse(T, q_sol_belt_2[i][2], 0);
+      T[3] = -0.8;
+      inverse(T, q_sol_belt_2[i][3], 0);
+    }
 
-    T[3] = -0.95;
-    inverse(T, q_sol_belt_2[0], 0);
-    T[3] = -1.085;
-    inverse(T, q_sol_belt_2[1], 0);
-    inverse(T, q_sol_belt_2[2], 0);
-    T[3] = -0.8;
-    inverse(T, q_sol_belt_2[3], 0);
-
-    T[3] =  -1.0;
-    inverse(T, q_sol_bin_2[0], 0);
-    T[3] = -1.26;
-    inverse(T, q_sol_bin_2[1], 0);
-    inverse(T, q_sol_bin_2[2], 0);
-    T[3] = -0.8;
-    inverse(T, q_sol_bin_2[3], 0);
+    for(int i=0;i<4;i++){
+      T[3] =  -1.0;
+      inverse(T, q_sol_bin_2[i][0], 0);
+      T[3] = -1.26 + part_height[i];
+      inverse(T, q_sol_bin_2[i][1], 0);
+      inverse(T, q_sol_bin_2[i][2], 0);
+      T[3] = -0.8;
+      inverse(T, q_sol_bin_2[i][3], 0);
+    }
 
     for(int i=0;i<6;i++)cout<<q_sol_belt_2[0][i]<<' ';cout<<endl;
     for(int i=0;i<6;i++)cout<<q_sol_belt_1[0][i]<<' ';cout<<endl;
@@ -510,7 +514,7 @@ public:
             double t[4] = {2.5, 4.5, 5.5, 7};
             if(!catched_1){
               open_gripper(1);
-              send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_belt_1, t, 4);
+              send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_belt_1[(events[i].type-1)/3], t, 4);
               double nn = (ros::Time::now() - events[i].st).toSec();
               double gan[4][3] = {
                 {- R - .1, 0, -ly[4] + (nn+2.5) * belt_vel}, 
@@ -526,7 +530,7 @@ public:
             }
             else if(!catched_2){
               open_gripper(2);
-              send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_belt_2, t, 4);
+              send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_belt_2[(events[i].type-1)/3], t, 4);
               double nn = (ros::Time::now() - events[i].st).toSec();
               double gan[4][3] = {
                 {R + .1, 0, -ly[4] + (nn+2.5) * belt_vel}, 
@@ -557,7 +561,7 @@ public:
             double gan[3] = {
               x - R - .1, 0, -y
             };
-            send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_bin_1, t, 4);
+            send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_bin_1[(ptype-1)/3], t, 4);
             send_gantry_to_state(gantry_joint_trajectory_publisher_, gan ,1.5);
             l_id = i, l_side = side;
             l_angle = part_pose[ptype][0].theta;
@@ -569,7 +573,7 @@ public:
             double gan[3] = {
               x + R + .1, 0, -y
             };
-            send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_bin_2, t, 4);
+            send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_bin_2[(ptype-1)/3], t, 4);
             send_gantry_to_state(gantry_joint_trajectory_publisher_, gan ,1.5);
             r_id = i, r_side = side;
             r_angle = part_pose[ptype][0].theta;
@@ -845,10 +849,10 @@ private:
   bool catched_1, catched_2;
   bool enabled_1, enabled_2;
 
-  double q_sol_belt_1[4][6];
-  double q_sol_belt_2[4][6];
-  double q_sol_bin_1[4][6];
-  double q_sol_bin_2[4][6];
+  double q_sol_belt_1[4][4][6];
+  double q_sol_belt_2[4][4][6];
+  double q_sol_bin_1[4][4][6];
+  double q_sol_bin_2[4][4][6];
 };
 
 
