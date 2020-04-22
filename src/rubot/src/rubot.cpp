@@ -184,9 +184,9 @@ public:
       inverse(T, q_sol_bin_1[i][3], 0);
     }
 
-    T[3] = 0.9;
-    inverse(T, q_sol_bin_1_put[0], 0);
     T[3] = 0.95;
+    inverse(T, q_sol_bin_1_put[0], 0);
+    T[3] = 1.0;
     inverse(T, q_sol_bin_1_put[1], 0);
     
     // neg x and z for right arm
@@ -212,13 +212,13 @@ public:
       inverse(T, q_sol_bin_2[i][3], 0);
     }
 
-    T[3] = -0.9; 
+    T[3] = -0.95; 
     inverse(T, q_sol_bin_2_put[0], 0);
-    T[3] = -0.95;
+    T[3] = -1.0;
     inverse(T, q_sol_bin_2_put[1], 0);
 
-    for(int i=0;i<6;i++)cout<<q_sol_belt_2[0][i]<<' ';cout<<endl;
-    for(int i=0;i<6;i++)cout<<q_sol_belt_1[0][i]<<' ';cout<<endl;
+    for(int i=0;i<6;i++)cout<<q_sol_belt_2[0][0][i]<<' ';cout<<endl;
+    for(int i=0;i<6;i++)cout<<q_sol_belt_1[0][0][i]<<' ';cout<<endl;
   }
   vector<Shipment> shipments_1, shipments_2;
   int bin_t2int(string s){
@@ -731,13 +731,13 @@ public:
         close_gripper(1);
         auto [x, y] = (l_side? shipments_2[0]: shipments_1[0]).position[l_id];
         double T[12] = {
-          1, 0, 0, 0.95,
+          1, 0, 0, 1.0,
           0, 1, 0, (l_side ? y - 0.214603 : -y + 0.214603),
           0, 0, 1, .1,
         };
         double q_sol[6];
         inverse(T, q_sol, 0);
-        send_arm_to_state(arm_1_joint_trajectory_publisher_, q_sol, 1.5);
+        send_arm_to_state(arm_1_joint_trajectory_publisher_, q_sol, 1);
         cnt_1++;
       }else{
         double q[3]={0,0,0};
@@ -792,13 +792,13 @@ public:
         close_gripper(2);
         auto [x, y] = (r_side? shipments_2[0]: shipments_1[0]).position[r_id];
         double T[12] = {
-          -1, 0, 0, -0.95,
+          -1, 0, 0, -1.0,
           0, 1, 0, (r_side ? y - 0.214603: -y + 0.214603),
           0, 0, -1, .1//(r_side ? -x: x),
         };
         double q_sol[6];
         inverse(T, q_sol, 0);
-        send_arm_to_state(arm_2_joint_trajectory_publisher_, q_sol, 1.5);
+        send_arm_to_state(arm_2_joint_trajectory_publisher_, q_sol, 1);
         cnt_2++;
       }else{
         double q[3]={0,0,0};
@@ -834,9 +834,8 @@ public:
         part_pose_del[left_p].pop_back();
         l_invalid = false;
         cnt_1 ++;
+        send_arm_to_state(arm_1_joint_trajectory_publisher_, q_sol_bin_1_put[0], 1);
         return true;
-      }else if(cnt_1 <= 10){
-        cnt_1++;return true;
       }else{
         cnt_1=0;return true;
       }
@@ -859,11 +858,10 @@ public:
         part_pose_del[right_p].pop_back();
         r_invalid = false;
         cnt_2 ++;
+        send_arm_to_state(arm_2_joint_trajectory_publisher_, q_sol_bin_2_put[0], 1);
         return true;
-      }else if(cnt_2 <= 10){
-        cnt_2++; return true;
       }else{
-        cnt_2 = 0; return true;
+        cnt_2 = 0; return true;   
       }
     }
     return false;
@@ -914,6 +912,11 @@ public:
 
     switch(ST){
       case IDLE:
+      // to be modified according to each order's starting time
+      if((ros::Time::now() - start_stamp).toSec() > 300){
+        if(shipments_1.size() && !shipments_1[0].invalid[0]) agv(1, shipments_1[0].shipment_t);
+        if(shipments_2.size() && !shipments_2[0].invalid[0]) agv(2, shipments_2[0].shipment_t);
+      }
       if(!reached(arm_1_joint_goal, arm_1_joint) || !reached(arm_2_joint_goal, arm_2_joint) || !reached_g(gantry_joint, gantry_joint_goal)) return;
       cout<<"IDLE"<<endl;
       do_it();
@@ -933,6 +936,12 @@ public:
         // ST = IDLE; 
         (r_side? shipments_2[0] : shipments_1[0]).finished[r_id] = false;
         r_id = -1; 
+        do_it();
+        break;
+      }else if(l_invalid && !catched_1){
+        do_it();
+        break;
+      }else if(r_invalid && !catched_2){
         do_it();
         break;
       }
@@ -959,16 +968,41 @@ public:
         r_id = -1; 
         do_it();
         break;
+      }else if(l_invalid && !catched_1 && cnt_1 == 0){
+        do_it();
+        break;
+      }else if(r_invalid && !catched_2 && cnt_2 == 0){
+        do_it();
+        break;
+      }
+      if(shipments_1.size() && shipments_1[0].invalid[0]){
+        bool tag = true;
+        // what if update when one arm already has one object
+        for(int i=0;i<shipments_1[0].finished_2.size();i++){
+          if(shipments_1[0].finished_2[i]) tag=false;
+        }
+        if(tag) shipments_1.erase(shipments_1.begin());
+      }
+      if(shipments_2.size() && shipments_2[0].invalid[0]){
+        bool tag = true;
+        for(int i=0;i<shipments_2[0].finished_2.size();i++){
+          if(shipments_2[0].finished_2[i]) tag=false;
+        }
+        if(tag) shipments_2.erase(shipments_2.begin());
       }
       cout<<"TWO"<<endl;
       if((l_invalid || r_invalid) && fabs(gantry_joint_goal[2]) > 3){
-        double q[3] = {0,0,0};
+        double q[3] = {0,0,gantry_joint[2] < 0 ? -2 : 2};
         send_gantry_to_state(gantry_joint_trajectory_publisher_, q, 3);
+        send_arm_to_state(arm_1_joint_trajectory_publisher_, rest_joints_1, 1);
+        send_arm_to_state(arm_2_joint_trajectory_publisher_, rest_joints_2, 1);
         break;
       }
       if(!place_it()) {
-        double q[3] = {0,0,0};
-        send_gantry_to_state(gantry_joint_trajectory_publisher_, q, 3),ST = IDLE;
+        double q[3] = {0,0,gantry_joint[2] < 0 ? -2 : 2};
+        send_gantry_to_state(gantry_joint_trajectory_publisher_, q, 2),ST = IDLE;
+        send_arm_to_state(arm_1_joint_trajectory_publisher_, rest_joints_1, 1);
+        send_arm_to_state(arm_2_joint_trajectory_publisher_, rest_joints_2, 1);
       }
       // case :
 
