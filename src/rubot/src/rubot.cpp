@@ -79,8 +79,8 @@ public:
   vector<int> obj_t;
   vector<bool> flipped;
   vector<bool> finished;
-  // vector<bool> finished_2;
-  vector<bool> inv;
+  vector<bool> finished_2;
+  vector<bool> invalid;
   string shipment_t;
   Shipment(int priority=100, int c=0):priority(priority), c(c){
   }
@@ -163,7 +163,6 @@ public:
       0, 1, 0, 0,
       0, 0, 1, 0.1,
     };
-    vector<double> part_height{0.017, 0.015, 0.005, 0.07}; // gasket gear piston rod pulley
     
     for(int i=0;i<4;i++){
       T[3] = 0.95;
@@ -176,14 +175,20 @@ public:
     }
 
     for(int i=0;i<4;i++){
-      T[3] = 1.0;
+      T[3] = 0.95;
       inverse(T, q_sol_bin_1[i][0], 0);
       T[3] = 1.26 - part_height[i];
       inverse(T, q_sol_bin_1[i][1], 0);
       inverse(T, q_sol_bin_1[i][2], 0);
-      T[3] = 0.8;
+      T[3] = 0.9;
       inverse(T, q_sol_bin_1[i][3], 0);
     }
+
+    T[3] = 0.9;
+    inverse(T, q_sol_bin_1_put[0], 0);
+    T[3] = 0.95;
+    inverse(T, q_sol_bin_1_put[1], 0);
+    
     // neg x and z for right arm
     T[0] = -1;
     T[10] = -1;
@@ -198,14 +203,19 @@ public:
     }
 
     for(int i=0;i<4;i++){
-      T[3] =  -1.0;
+      T[3] =  -0.95;
       inverse(T, q_sol_bin_2[i][0], 0);
       T[3] = -1.26 + part_height[i];
       inverse(T, q_sol_bin_2[i][1], 0);
       inverse(T, q_sol_bin_2[i][2], 0);
-      T[3] = -0.8;
+      T[3] = -0.9;
       inverse(T, q_sol_bin_2[i][3], 0);
     }
+
+    T[3] = -0.9; 
+    inverse(T, q_sol_bin_2_put[0], 0);
+    T[3] = -0.95;
+    inverse(T, q_sol_bin_2_put[1], 0);
 
     for(int i=0;i<6;i++)cout<<q_sol_belt_2[0][i]<<' ';cout<<endl;
     for(int i=0;i<6;i++)cout<<q_sol_belt_1[0][i]<<' ';cout<<endl;
@@ -220,26 +230,15 @@ public:
   void order_callback(const nist_gear::Order::ConstPtr & order_msg) {
     for(const auto & item: order_msg->shipments){
       Shipment *tmp;
-      int i;
-      bool update = false;
-      for(i=0;i<shipments_1.size();i++){
+      for(int i=0;i<shipments_1.size();i++){
         if(shipments_1[i].shipment_t == item.shipment_type){
-          update = true;
-          break;
+          // cout<<"UPdating"<<endl;
+          fill(shipments_1[i].invalid.begin(),shipments_1[i].invalid.end(),true);
         }
       }
-      if(update){
-        fill(shipments_1[i].inv.begin(),shipments_1[i].inv.end(),true);
-      }
-      else{
-        for(i=0;i<shipments_2.size();i++){
-          if(shipments_2[i].shipment_t == item.shipment_type){
-            update=true;
-            break;
-          }
-        }
-        if(update){
-          fill(shipments_2[i].inv.begin(),shipments_2[i].inv.end(),true);
+      for(int i=0;i<shipments_2.size();i++){
+        if(shipments_2[i].shipment_t == item.shipment_type){
+          fill(shipments_2[i].invalid.begin(),shipments_2[i].invalid.end(),true);
         }
       }
       int n = bin_t2int(item.agv_id);
@@ -277,8 +276,8 @@ public:
         else tmp->flipped.push_back(false);
       }
       tmp->finished.resize(tmp->position.size(),false);
-      // tmp->finished_2.resize(tmp->position.size(),false);
-      tmp->inv.resize(tmp->position.size(),false);
+      tmp->finished_2.resize(tmp->position.size(),false);
+      tmp->invalid.resize(tmp->position.size(),false);
     }
   }
 
@@ -457,7 +456,7 @@ public:
   void logical_camera_5_callback(const nist_gear::LogicalCameraImage::ConstPtr & image_msg){
     auto current_time = ros::Time::now();
     for(const auto &item: image_msg->models){
-      if(item.pose.position.x < .8) continue;
+      if(item.pose.position.x < .92) continue;
       tf2::Quaternion tmp1(item.pose.orientation.x,item.pose.orientation.y,
         item.pose.orientation.z, item.pose.orientation.w);
       auto ori = q_logical*tmp1;
@@ -474,7 +473,7 @@ public:
         }
       }
       if(tag)continue;
-      cout<<"coming theta "<< theta<<endl;
+      cout<<"coming height "<< item.pose.position.x<<endl;
       events.emplace_back(to_z, type, theta, flipped);
     }
   }
@@ -509,9 +508,9 @@ public:
       for(auto [tmp, side]: tmp_list){
         tmp = &shipments_1[0];
         for(int j=0;j<tmp->obj_t.size();j++){
-          if(tmp->finished[j])continue;
+          if(tmp->finished[j] || tmp->invalid[j] == true)continue;
           if(tmp->obj_t[j] == events[i].type){
-            double t[4] = {2.5, 4.5, 5.5, 7};
+            double t[4] = {2, 2.7, 3.5, 4};
             if(!catched_1){
               open_gripper(1);
               send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_belt_1[(events[i].type-1)/3], t, 4);
@@ -551,21 +550,24 @@ public:
     // 2. bin
     for(auto [tmp, side]: tmp_list){
       for(int i=0;i<tmp->obj_t.size();i++){
-        if(tmp->finished[i] == true) continue;
+        if(tmp->finished[i] == true || tmp->invalid[i] == true) continue;
         int ptype = tmp->obj_t[i];
         if(part_pose[ptype].size()){
           double x = part_pose[ptype][0].x, y = part_pose[ptype][0].y;
-          double t[6] = {2, 4.5, 5.5, 7};
           if(!catched_1){
             open_gripper(1);
             double gan[3] = {
               x - R - .1, 0, -y
             };
+            double t_begin = max(fabs(gan[0] - gantry_joint[0]) / rail_vel, fabs(gan[2] - gantry_joint[2]) / base_vel);
+            t_begin = max(t_begin, 1.7);
+            double t[4] = {t_begin, t_begin + 1, t_begin + 2, t_begin + 3};
             send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_bin_1[(ptype-1)/3], t, 4);
-            send_gantry_to_state(gantry_joint_trajectory_publisher_, gan ,1.5);
+            send_gantry_to_state(gantry_joint_trajectory_publisher_, gan , t_begin);
             l_id = i, l_side = side;
             l_angle = part_pose[ptype][0].theta;
             tmp->finished[i] = true;
+            part_pose_del[ptype].push_back(part_pose[ptype].front());
             part_pose[ptype].pop_front();
             return true;
           }else if(!catched_2){
@@ -573,14 +575,114 @@ public:
             double gan[3] = {
               x + R + .1, 0, -y
             };
+            double t_begin = max(fabs(gan[0] - gantry_joint[0]) / rail_vel, fabs(gan[2] - gantry_joint[2]) / base_vel);
+            t_begin = max(t_begin, 1.7);
+            double t[4] = {t_begin, t_begin + 1, t_begin + 2, t_begin + 3};
             send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_bin_2[(ptype-1)/3], t, 4);
-            send_gantry_to_state(gantry_joint_trajectory_publisher_, gan ,1.5);
+            send_gantry_to_state(gantry_joint_trajectory_publisher_, gan ,t_begin);
             r_id = i, r_side = side;
             r_angle = part_pose[ptype][0].theta;
             tmp->finished[i] = true;
+            part_pose_del[ptype].push_back(part_pose[ptype].front());
             part_pose[ptype].pop_front();
             return true;
           }
+        }
+      }
+    }
+    // 3. invalid
+    // if id = -1 and catched, it means it need to be put back
+    // cannot co exist with normal catch?
+
+    if(l_id !=-1 || r_id != -1) return false;
+    for(auto [tmp, side]: tmp_list){
+      for(int i=0;i<tmp->obj_t.size();i++){
+        if(!tmp->finished_2[i] || !tmp->invalid[i])continue;
+        auto [x, y] = (side? shipments_2[0]: shipments_1[0]).position[i];
+        int ptype = tmp->obj_t[i];
+        if(!catched_1){ // l_side = 0
+          double T[12] = {
+            1, 0, 0, 0.95,
+            0, 1, 0, (side ? y - 0.214603 : -y + 0.214603),
+            0, 0, 1, .1,
+          };
+          double gan[2][3] = {
+            {-R + (side ? x: -x) - .1, 0, (side? 2.5: -2.5) },
+            {-R + (side ? x: -x) - .1, 0, (side? 6.9: -6.9)},
+          };
+          double dtheta = (side ? shipments_2[0].theta[i]: -shipments_1[0].theta[i]);
+          double q_sol[4][6];
+          double t1[4] = {5, 6, 7, 8};
+          double t2[2] = {2, 5};
+          
+          inverse(T, q_sol[0], 0);
+          T[3] = 1.26 - part_height[(ptype-1)/3];
+          inverse(T, q_sol[1], 0);
+          inverse(T, q_sol[2], 0);
+          T[3] = 0.9;
+          inverse(T, q_sol[3], 0);
+          open_gripper(1);
+          for(int i=0;i<3;i++){
+            q_sol[i][5] -= dtheta + (r_side? 0: PI);
+            while(q_sol[i][5]>PI) q_sol[i][5] -= PI_2;
+            while(q_sol[i][5]<-PI) q_sol[i][5] += PI_2;
+          }
+          if(fabs(gantry_joint[0]) > 2 || fabs(gantry_joint[2] - (side ? 6.9 : - 6.9)) > 3  ){
+            cout<<gantry_joint[0] << " Longer1 " << gantry_joint[2]<<endl;
+            send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol, t1, 4);
+            send_gantry_to_states(gantry_joint_trajectory_publisher_, gan, t2, 2);
+          }else{
+            t1[0] -= 4,  t1[1] -= 4, t1[2] -= 4, t1[3] -= 4;
+            send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol, t1, 4);
+            send_gantry_to_state(gantry_joint_trajectory_publisher_, gan[1], 1);
+          }
+          l_invalid = true;
+          left_p = ptype;
+          tmp->finished[i] = false;
+          tmp->finished_2[i] = false;
+          return true;
+        }
+        else if(!catched_2){
+          double T[12] = {
+            -1, 0, 0, -0.95,
+            0, 1, 0, (side ? y - 0.214603 : -y + 0.214603),
+            0, 0, -1, .1,
+          };
+          double gan[2][3] = {
+            {R + .1 - (side ? -x: x), 0, (side? 2.5: -2.5) },
+            {R + .1 - (side ? -x: x), 0, (side? 6.9: -6.9)/*-7.114603*/},
+          };
+          double dtheta = (side ? shipments_2[0].theta[i]: -shipments_1[0].theta[i]);
+          double q_sol[4][6];
+          double t1[4] = {5, 6, 7, 8};
+          double t2[2] = {2, 5};
+          
+          inverse(T, q_sol[0], 0);
+          T[3] = -1.26 + part_height[(ptype-1)/3];
+          inverse(T, q_sol[1], 0);
+          inverse(T, q_sol[2], 0);
+          T[3] = -0.9;
+          inverse(T, q_sol[3], 0);
+          open_gripper(2);
+          for(int i=0;i<3;i++){
+            q_sol[i][5] -= dtheta + (r_side? 0: PI);
+            while(q_sol[i][5]>PI) q_sol[i][5] -= PI_2;
+            while(q_sol[i][5]<-PI) q_sol[i][5] += PI_2;
+          }
+          if(fabs(gantry_joint[0]) > 2 || fabs(gantry_joint[2] - (side ? 6.9 : - 6.9)) > 3  ){
+            cout<<gantry_joint[0] << " Longer2 " << gantry_joint[2]<<endl;
+            send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol, t1, 4);
+            send_gantry_to_states(gantry_joint_trajectory_publisher_, gan, t2, 2);
+          }else{
+            t1[0] -= 4,  t1[1] -= 4, t1[2] -= 4, t1[3] -= 4;
+            send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol, t1, 4);
+            send_gantry_to_state(gantry_joint_trajectory_publisher_, gan[1], 1);
+          }
+          r_invalid = true;
+          right_p = ptype;
+          tmp->finished[i] = false;
+          tmp->finished_2[i] = false;
+          return true;
         }
       }
     }
@@ -588,14 +690,14 @@ public:
   }
   bool place_it(){
     if(l_id!=-1){
-      cout<<"HERE"<<endl;
+      // cout<<"HERE"<<endl;
       if(cnt_1==0){
-        cout<<"HERE cnt = 0"<<endl;
+        // cout<<"HERE cnt = 0"<<endl;
         auto [x, y] = (l_side? shipments_2[0]: shipments_1[0]).position[l_id];
         double q_sol[2][6];
         // Time stamp to be modified !!!!!
         double t1[2] = {5, 7};
-        double t2[2] = {2, 5};
+        double t2[2] = {2, 6};
         double T[12] = {
           1, 0, 0, 1.0,
           0, 1, 0, (l_side ? y - 0.214603 : -y + 0.214603),
@@ -614,8 +716,16 @@ public:
           while(q_sol[i][5]>PI) q_sol[i][5] -= PI_2;
           while(q_sol[i][5]<-PI) q_sol[i][5] += PI_2;
         }
-        send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol, t1, 2);
-        send_gantry_to_states(gantry_joint_trajectory_publisher_, gan, t2, 2);
+        // TODO : calculate t
+        if(fabs(gantry_joint[0]) < 2 || fabs(gantry_joint[2] - (l_side ? 6.9 : - 6.9)) > 3  ){
+          send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol, t1, 2);
+          send_gantry_to_states(gantry_joint_trajectory_publisher_, gan, t2, 2);
+        }else{
+          t1[0] -= 4;
+          t1[1] -= 4;
+          send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol, t1, 2);
+          send_gantry_to_state(gantry_joint_trajectory_publisher_, gan[1], 1);
+        }
         cnt_1++;
       }else if(cnt_1==1){
         close_gripper(1);
@@ -631,11 +741,12 @@ public:
         cnt_1++;
       }else{
         double q[3]={0,0,0};
-        send_gantry_to_state(gantry_joint_trajectory_publisher_, q, 3);
+        // send_gantry_to_state(gantry_joint_trajectory_publisher_, q, 3);
         bool tag = true;
         Shipment * tmp = l_side ? &shipments_2[0]: &shipments_1[0];
+        tmp->finished_2[l_id] = true;
         for(int i=0;i<tmp->finished.size();i++){
-          if(tmp->finished[i]==false){tag=false;break;}
+          if(tmp->finished_2[i]==false || tmp->invalid[i]){tag=false;break;}
         }
         if(tag) agv(1, l_side ? shipments_2[0].shipment_t: shipments_1[0].shipment_t);
         cnt_1 = 0;
@@ -667,8 +778,15 @@ public:
           while(q_sol[i][5]>PI) q_sol[i][5] -= PI_2;
           while(q_sol[i][5]<-PI) q_sol[i][5] += PI_2;
         }
-        send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol, t1, 2);
-        send_gantry_to_states(gantry_joint_trajectory_publisher_, gan, t2, 2);
+        if(fabs(gantry_joint[0]) > 2 || fabs(gantry_joint[2] - (r_side ? 6.9 : - 6.9)) > 3  ){
+          send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol, t1, 2);
+          send_gantry_to_states(gantry_joint_trajectory_publisher_, gan, t2, 2);
+        }else{
+          t1[0] -= 4;
+          t1[1] -= 4;
+          send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol, t1, 2);
+          send_gantry_to_state(gantry_joint_trajectory_publisher_, gan[1], 1);
+        }
         cnt_2++;
       }else if(cnt_2==1){
         close_gripper(2);
@@ -684,11 +802,11 @@ public:
         cnt_2++;
       }else{
         double q[3]={0,0,0};
-        send_gantry_to_state(gantry_joint_trajectory_publisher_, q, 3);
         Shipment * tmp = l_side ? &shipments_2[0]: &shipments_1[0];
+        tmp->finished_2[r_id] = true;
         bool tag= true;
         for(int i=0;i<tmp->finished.size();i++){
-          if(tmp->finished[i]==false){tag=false;break;}
+          if(tmp->finished_2[i]==false || tmp->invalid[i]){tag=false;break;}
         }
         if(tag) agv(2, l_side ? shipments_2[0].shipment_t: shipments_1[0].shipment_t);
         cnt_2 = 0;
@@ -696,7 +814,61 @@ public:
       }
       return true;
     }
+    // put it back ?
+    else if(l_invalid){
+      cout<<"invalid here1"<<endl;
+      if(cnt_1 == 0){
+        double x = part_pose_del[left_p].back().x, y = part_pose_del[left_p].back().y;
+        double gan[3] = {
+          x - R - .1, 0, -y
+        };
+        double t_begin = max(max(fabs(gan[0] - gantry_joint[0]) / rail_vel, fabs(gan[2] - gantry_joint[2]) / base_vel), 1.7);
+        double t[2] = {t_begin, t_begin + 1};
+        send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_bin_1_put, t, 2);
+        send_gantry_to_state(gantry_joint_trajectory_publisher_, gan ,t_begin);
+        cnt_1 ++;
+        return true;
+      }else if(cnt_1 == 1){
+        close_gripper(1);
+        part_pose[left_p].push_back(part_pose_del[left_p].back());
+        part_pose_del[left_p].pop_back();
+        l_invalid = false;
+        cnt_1 ++;
+        return true;
+      }else if(cnt_1 <= 10){
+        cnt_1++;return true;
+      }else{
+        cnt_1=0;return true;
+      }
+    }else if(r_invalid){
+      cout<<"invalid here2"<<endl;
+      if(cnt_2 == 0){
+        double x = part_pose_del[right_p].back().x, y = part_pose_del[right_p].back().y;
+        double gan[3] = {
+          x + R + .1, 0, -y
+        };
+        double t_begin = max(max(fabs(gan[0] - gantry_joint[0]) / rail_vel, fabs(gan[2] - gantry_joint[2]) / base_vel), 1.7);
+        double t[2] = {t_begin, t_begin + 1};
+        send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_bin_2_put, t, 2);
+        send_gantry_to_state(gantry_joint_trajectory_publisher_, gan ,t_begin);
+        cnt_2 ++;
+        return true;
+      }else if(cnt_2 == 1){
+        close_gripper(2);
+        part_pose[right_p].push_back(part_pose_del[right_p].back());
+        part_pose_del[right_p].pop_back();
+        r_invalid = false;
+        cnt_2 ++;
+        return true;
+      }else if(cnt_2 <= 10){
+        cnt_2++; return true;
+      }else{
+        cnt_2 = 0; return true;
+      }
+    }
     return false;
+  }
+  bool flip_it(){
   }
   void gantry_joint_states_callback(const sensor_msgs::JointState::ConstPtr & joint_state_msg){
     // ROS_INFO_STREAM_THROTTLE(10,
@@ -743,18 +915,63 @@ public:
     switch(ST){
       case IDLE:
       if(!reached(arm_1_joint_goal, arm_1_joint) || !reached(arm_2_joint_goal, arm_2_joint) || !reached_g(gantry_joint, gantry_joint_goal)) return;
+      cout<<"IDLE"<<endl;
       do_it();
       ST = ONE;
       
       break;
       case ONE:
+      // TODO: handle drop
       if(!reached(arm_1_joint_goal, arm_1_joint) || !reached(arm_2_joint_goal, arm_2_joint) || !reached_g(gantry_joint, gantry_joint_goal)) return;
+      if(l_id != -1 && !catched_1){
+        // ST = IDLE; 
+        (l_side? shipments_2[0] : shipments_1[0]).finished[l_id] = false;
+        l_id = -1; 
+        do_it();
+        break;
+      }else if(r_id != -1 && !catched_2){
+        // ST = IDLE; 
+        (r_side? shipments_2[0] : shipments_1[0]).finished[r_id] = false;
+        r_id = -1; 
+        do_it();
+        break;
+      }
+      cout<<"ONE"<<endl;
       do_it();
       ST = TWO;
       break;
+      // case INTER:{
+      //   if(!reached(arm_1_joint_goal, arm_1_joint) || !reached(arm_2_joint_goal, arm_2_joint) || !reached_g(gantry_joint, gantry_joint_goal)) return;
+      //   double q[3] = {0,0,0};
+      //   send_gantry_to_state(gantry_joint_trajectory_publisher_, q, 3),ST = IDLE;
+      //   break;
+      // }
       case TWO: 
+      // TODO: handle drop
       if(!reached(arm_1_joint_goal, arm_1_joint) || !reached(arm_2_joint_goal, arm_2_joint) || !reached_g(gantry_joint, gantry_joint_goal)) return;
-      if(!place_it()) ST = IDLE;
+      if(l_id != -1 && !catched_1 && cnt_1 == 0){
+        (l_side? shipments_2[0] : shipments_1[0]).finished[l_id] = false;
+        l_id = -1; 
+        do_it();
+        break;
+      }else if(r_id != -1 && !catched_2 && cnt_2 == 0){
+        (r_side? shipments_2[0] : shipments_1[0]).finished[r_id] = false;
+        r_id = -1; 
+        do_it();
+        break;
+      }
+      cout<<"TWO"<<endl;
+      if((l_invalid || r_invalid) && fabs(gantry_joint_goal[2]) > 3){
+        double q[3] = {0,0,0};
+        send_gantry_to_state(gantry_joint_trajectory_publisher_, q, 3);
+        break;
+      }
+      if(!place_it()) {
+        double q[3] = {0,0,0};
+        send_gantry_to_state(gantry_joint_trajectory_publisher_, q, 3),ST = IDLE;
+      }
+      // case :
+
       break;
     }
   }
@@ -811,6 +1028,8 @@ private:
   ros::ServiceClient agv_2;
 
   const double belt_vel = 0.2;
+  const double base_vel = 4;
+  const double rail_vel = 4;
 
   double arm_1_joint[6], arm_2_joint[6], gantry_joint[3];
 
@@ -827,6 +1046,7 @@ private:
   int bin_type[16] = {0};
   bool initialized[4] = {0};
   deque<part_bin_pose> part_pose[13];
+  deque<part_bin_pose> part_pose_del[13];
 
   bool manipulate[16] = {false};
 
@@ -842,7 +1062,7 @@ private:
   bool l_side = false, r_side = false;
   double l_angle=0, r_angle=0;
 
-  PType left_p=EMPTY, right_p = EMPTY;
+  int left_p=0, right_p = 0;
 
   int cnt_1 = 0, cnt_2 = 0;
 
@@ -853,6 +1073,15 @@ private:
   double q_sol_belt_2[4][4][6];
   double q_sol_bin_1[4][4][6];
   double q_sol_bin_2[4][4][6];
+
+  double q_sol_bin_1_put[4][6];
+  double q_sol_bin_2_put[4][6];
+  // double q_sol_tray_1[4][4][6];
+  // double q_sol_tray_2[4][4][6];
+  bool l_invalid=false, r_invalid=false;
+
+  const double part_height[4] = {0.017, 0.0156, 0.006, 0.07}; // gasket gear piston rod pulley
+
 };
 
 
