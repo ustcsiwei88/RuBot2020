@@ -162,7 +162,7 @@ void forward_all(const double* q, double* T1, double* T2, double* T3, double* T4
   }
 }
 
-int inverse(const double* T, double* q_sols, double q6_des) {
+int inverse(const double* T, double* q_sols, double q6_des, bool lin = false) {
   int num_sols = 0;
   double T02 = -*T; T++; double T00 =  *T; T++; double T01 =  *T; T++; double T03 = -*T; T++; 
   double T12 = -*T; T++; double T10 =  *T; T++; double T11 =  *T; T++; double T13 = -*T; T++; 
@@ -303,7 +303,9 @@ int inverse(const double* T, double* q_sols, double q6_des) {
           for(int i=0;i<6;i++) if(q_sols[i]>PI) q_sols[i] -= PI_2;
           if(q_sols[1]>0) continue;
           if(q_sols[3]>0) continue;
-          if(fabs(q_sols[0])> PI/2) continue;
+          if(lin){if(fabs(q_sols[0])> 2) continue;}
+          else {if(fabs(q_sols[0])> PI/2) continue;}
+          if(fabs(q_sols[4])> PI/2) continue;
           return ++num_sols;
         }
       }

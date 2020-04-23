@@ -37,7 +37,7 @@
 #define MAIN_FILE
 using namespace std;
 
-int inverse(const double* T, double* q_sols, double q6_des);
+int inverse(const double* T, double* q_sols, double q6_des, bool lin = false);
 
 
 ros::Time start_stamp;
@@ -163,17 +163,19 @@ public:
       0, 1, 0, 0,
       0, 0, 1, 0.1,
     };
-    
+
+    //belt
     for(int i=0;i<4;i++){
-      T[3] = 0.95;
+      T[3] = 0.95 - part_height[i] + part_height[3];
       inverse(T, q_sol_belt_1[i][0], 0);
       T[3] = 1.085 - part_height[i];
       inverse(T, q_sol_belt_1[i][1], 0);
       inverse(T, q_sol_belt_1[i][2], 0);
-      T[3] = 0.8;
+      T[3] = 0.8 - part_height[i] + part_height[3];
       inverse(T, q_sol_belt_1[i][3], 0);
     }
 
+    //bin
     for(int i=0;i<4;i++){
       T[3] = 0.95;
       inverse(T, q_sol_bin_1[i][0], 0);
@@ -184,41 +186,115 @@ public:
       inverse(T, q_sol_bin_1[i][3], 0);
     }
 
-    T[3] = 0.95;
+    T[3] = 0.9;
     inverse(T, q_sol_bin_1_put[0], 0);
-    T[3] = 1.0;
+    T[3] = 0.95;
     inverse(T, q_sol_bin_1_put[1], 0);
     
+    //shelf
+    T[7] = 0.9;
+    for(int i=0;i<4;i++){
+      T[3] = 0.35 - part_height[i] + part_height[3];
+      inverse(T, q_sol_shelf_1[0][i][0], 0, true);
+      inverse(T, q_sol_shelf_1[0][i][1], 0, true);
+      T[3] = 0.57 - part_height[i];
+      inverse(T, q_sol_shelf_1[0][i][2], 0, true);
+      inverse(T, q_sol_shelf_1[0][i][3], 0, true);
+      T[3] = 0.3 - part_height[i] + part_height[3];
+      inverse(T, q_sol_shelf_1[0][i][4], 0, true);
+      memcpy(q_sol_shelf_1[0][i][5], rest_joints_1, 6 * sizeof(double));
+    }
+    T[3] = 0.3; inverse(T, q_sol_shelf_1_put[0][0], 0, true);
+    T[3] = 0.3; inverse(T, q_sol_shelf_1_put[0][1], 0, true);
+    T[3] = 0.35; inverse(T, q_sol_shelf_1_put[0][2], 0, true);
+
+
+    T[7] = -0.9;
+    for(int i=0;i<4;i++){
+      T[3] = 0.35 - part_height[i] + part_height[3];
+      inverse(T, q_sol_shelf_1[1][i][0], 0, true);
+      inverse(T, q_sol_shelf_1[1][i][1], 0, true);
+      T[3] = 0.57 - part_height[i];
+      inverse(T, q_sol_shelf_1[1][i][2], 0, true);
+      inverse(T, q_sol_shelf_1[1][i][3], 0, true);
+      T[3] = 0.3 - part_height[i] + part_height[3];
+      inverse(T, q_sol_shelf_1[1][i][4], 0, true);
+      memcpy(q_sol_shelf_1[1][i][5], rest_joints_1, 6 * sizeof(double));
+    }
+
+    T[3] = 0.3; inverse(T, q_sol_shelf_1_put[1][0], 0, true);
+    T[3] = 0.3; inverse(T, q_sol_shelf_1_put[1][1], 0, true);
+    T[3] = 0.35; inverse(T, q_sol_shelf_1_put[1][2], 0, true);
+
     // neg x and z for right arm
     T[0] = -1;
+    T[7] = 0;
     T[10] = -1;
+
+    // belt
     for(int i=0;i<4;i++){
-      T[3] = -0.95;
+      T[3] = -0.95 + part_height[i] - part_height[3];
       inverse(T, q_sol_belt_2[i][0], 0);
       T[3] = -1.085 + part_height[i];
       inverse(T, q_sol_belt_2[i][1], 0);
       inverse(T, q_sol_belt_2[i][2], 0);
-      T[3] = -0.8;
+      T[3] = -0.8 + part_height[i] - part_height[3];
       inverse(T, q_sol_belt_2[i][3], 0);
     }
 
+    // bin
     for(int i=0;i<4;i++){
-      T[3] =  -0.95;
+      T[3] =  -0.95 + part_height[i] - part_height[3];
       inverse(T, q_sol_bin_2[i][0], 0);
       T[3] = -1.26 + part_height[i];
       inverse(T, q_sol_bin_2[i][1], 0);
       inverse(T, q_sol_bin_2[i][2], 0);
-      T[3] = -0.9;
+      T[3] = -0.9 + part_height[i] - part_height[3];
       inverse(T, q_sol_bin_2[i][3], 0);
     }
 
-    T[3] = -0.95; 
+    T[3] = -0.9; 
     inverse(T, q_sol_bin_2_put[0], 0);
-    T[3] = -1.0;
+    T[3] = -0.95;
     inverse(T, q_sol_bin_2_put[1], 0);
 
-    for(int i=0;i<6;i++)cout<<q_sol_belt_2[0][0][i]<<' ';cout<<endl;
-    for(int i=0;i<6;i++)cout<<q_sol_belt_1[0][0][i]<<' ';cout<<endl;
+    //shelf
+    T[7] = 0.9;
+    for(int i=0;i<4;i++){
+      T[3] = -0.35 + part_height[i] - part_height[3];
+      inverse(T, q_sol_shelf_2[0][i][0], 0, true);
+      inverse(T, q_sol_shelf_2[0][i][1], 0, true);
+      T[3] = -0.57 + part_height[i];
+      inverse(T, q_sol_shelf_2[0][i][2], 0, true);
+      inverse(T, q_sol_shelf_2[0][i][3], 0, true);
+      T[3] = -0.3 + part_height[i] - part_height[3];
+      inverse(T, q_sol_shelf_2[0][i][4], 0, true);
+      memcpy(q_sol_shelf_2[0][i][5], rest_joints_2, 6 * sizeof(double));
+    }
+    
+    T[3] = -0.3; inverse(T, q_sol_shelf_2_put[0][0], 0, true);
+    T[3] = -0.3; inverse(T, q_sol_shelf_2_put[0][1], 0, true);
+    T[3] = -0.35; inverse(T, q_sol_shelf_2_put[0][2], 0, true);
+
+    T[7] = -0.9;
+    for(int i=0;i<4;i++){
+      T[3] = -0.35 + part_height[i] - part_height[3];
+      inverse(T, q_sol_shelf_2[1][i][0], 0, true);
+      inverse(T, q_sol_shelf_2[1][i][1], 0, true);
+      T[3] = -0.57 + part_height[i];
+      inverse(T, q_sol_shelf_2[1][i][2], 0, true);
+      inverse(T, q_sol_shelf_2[1][i][3], 0), true;
+      T[3] = -0.3 + part_height[i] - part_height[3];
+      inverse(T, q_sol_shelf_2[1][i][4], 0), true;
+      memcpy(q_sol_shelf_2[1][i][5], rest_joints_2, 6 * sizeof(double));
+    }
+
+    T[3] = -0.3; inverse(T, q_sol_shelf_2_put[1][0], 0, true);
+    T[3] = -0.3; inverse(T, q_sol_shelf_2_put[1][1], 0, true);
+    T[3] = -0.35; inverse(T, q_sol_shelf_2_put[1][2], 0, true);
+
+    // for(int i=0;i<6;i++)cout<<q_sol_shelf_1[0][0][0][i]<<' ';cout<<endl;
+    // for(int i=0;i<6;i++)cout<<q_sol_shelf_1[0][0][1][i]<<' ';cout<<endl;
   }
   vector<Shipment> shipments_1, shipments_2;
   int bin_t2int(string s){
@@ -478,6 +554,26 @@ public:
     }
   }
 
+  // shelf
+  void logical_camera_6_callback(const nist_gear::LogicalCameraImage::ConstPtr & image_msg){
+    if(initialized[5]) return;
+    for(const auto &item: image_msg->models){
+      tf2::Quaternion tmp1(item.pose.orientation.x,item.pose.orientation.y,
+        item.pose.orientation.z, item.pose.orientation.w);
+      auto ori = q_logical*tmp1;
+      ori.normalize();
+      double x = ori.x(), y = ori.y(), z = ori.z(), w = ori.w();
+      double px = lx[5] - item.pose.position.y;
+      double py = ly[5] + item.pose.position.z;
+      double pz = lz - item.pose.position.x;
+      int type = type2int(item.type);
+      double theta = atan2(2 * (z*w+x*y), 1-2*(z*z-y*y));
+      bool flipped = (1-2*(x*x + y*y)) < 0;
+      // part_pose[type].emplace_back(px, py, theta, flipped);
+      part_pose_shelf[type].emplace_back(px, py, theta, flipped);
+    }
+    initialized[5] = true;
+  }
   void agv(int num, string ship_t){
     nist_gear::AGVControl srv;
     srv.request.shipment_type = ship_t;
@@ -547,7 +643,7 @@ public:
         }
       }
     }
-    // 2. bin
+    // 2. bin 
     for(auto [tmp, side]: tmp_list){
       for(int i=0;i<tmp->obj_t.size();i++){
         if(tmp->finished[i] == true || tmp->invalid[i] == true) continue;
@@ -590,7 +686,61 @@ public:
         }
       }
     }
-    // 3. invalid
+    // 3. shelf
+    for(auto [tmp, side]: tmp_list){
+      for(int i=0;i<tmp->obj_t.size();i++){
+        if(tmp->finished[i] == true || tmp->invalid[i] == true) continue;
+        int ptype = tmp->obj_t[i];
+        if(part_pose_shelf[ptype].size()){
+          if(!catched_1){
+            open_gripper(1);
+            double x = part_pose_shelf[ptype][0].x, y = part_pose_shelf[ptype][0].y;
+            double gans[6][3] = {
+              {x - R - .1, 0, - (y - (y>0 ? 2: -2))},
+              {x - R - .1, 0, - (y - (y>0 ? 0.9: -0.9))},
+              {x - R - .1, 0, - (y - (y>0 ? 0.9: -0.9))},
+              {x - R - .1, 0, - (y - (y>0 ? 0.9: -0.9))},
+              {x - R - .1, 0, - (y - (y>0 ? 0.9: -0.9))},
+              {x - R - .1, 0, - (y - (y>0 ? 2: -2))},
+            };
+            double t_begin = max(fabs(gans[0][0] - gantry_joint[0]) / rail_vel, fabs(gans[0][2] - gantry_joint[2]) / base_vel);
+            t_begin = max(t_begin, 2.0);
+            double t[6] = {t_begin, t_begin + 1, t_begin + 2, t_begin + 3, t_begin + 4, t_begin + 4.5};
+            send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_shelf_1[y<0?1:0][(ptype-1)/3], t, 6);
+            send_gantry_to_states(gantry_joint_trajectory_publisher_, gans , t, 6);
+            l_id = i, l_side = side;
+            l_angle = part_pose_shelf[ptype][0].theta;
+            tmp->finished[i] = true;
+            part_pose_del[ptype].push_back(part_pose[ptype].front());
+            part_pose_shelf[ptype].pop_front();
+            return true;
+          }else if(!catched_2){
+            open_gripper(2);
+            double x = part_pose_shelf[ptype][0].x, y = part_pose_shelf[ptype][0].y;
+            double gans[6][3] = {
+              {x + R + .1, 0, - (y - (y>0 ? 2: -2))},
+              {x + R + .1, 0, - (y - (y>0 ? 0.9: -0.9))},
+              {x + R + .1, 0, - (y - (y>0 ? 0.9: -0.9))},
+              {x + R + .1, 0, - (y - (y>0 ? 0.9: -0.9))},
+              {x + R + .1, 0, - (y - (y>0 ? 0.9: -0.9))},
+              {x + R + .1, 0, - (y - (y>0 ? 2: -2))}
+            };
+            double t_begin = max(fabs(gans[0][0] - gantry_joint[0]) / rail_vel, fabs(gans[0][2] - gantry_joint[2]) / base_vel);
+            t_begin = max(t_begin, 2.0);
+            double t[6] = {t_begin, t_begin + 1, t_begin + 2, t_begin + 3, t_begin + 4, t_begin + 4.5};
+            send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_shelf_2[y<0?1:0][(ptype-1)/3], t, 6);
+            send_gantry_to_states(gantry_joint_trajectory_publisher_, gans , t, 6);
+            r_id = i, r_side = side;
+            r_angle = part_pose_shelf[ptype][0].theta;
+            tmp->finished[i] = true;
+            part_pose_del[ptype].push_back(part_pose[ptype].front());
+            part_pose_shelf[ptype].pop_front();
+            return true;
+          }
+        }
+      }
+    }
+    // 4. invalid
     // if id = -1 and catched, it means it need to be put back
     // cannot co exist with normal catch?
 
@@ -697,7 +847,7 @@ public:
         double q_sol[2][6];
         // Time stamp to be modified !!!!!
         double t1[2] = {5, 7};
-        double t2[2] = {2, 6};
+        double t2[2] = {2, 5};
         double T[12] = {
           1, 0, 0, 1.0,
           0, 1, 0, (l_side ? y - 0.214603 : -y + 0.214603),
@@ -824,19 +974,38 @@ public:
         };
         double t_begin = max(max(fabs(gan[0] - gantry_joint[0]) / rail_vel, fabs(gan[2] - gantry_joint[2]) / base_vel), 1.7);
         double t[2] = {t_begin, t_begin + 1};
-        send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_bin_1_put, t, 2);
-        send_gantry_to_state(gantry_joint_trajectory_publisher_, gan ,t_begin);
+        if(fabs(y) > 3){
+          double gans[2][3] = {
+            {x - R - .1, 0, - (y - (y>0? 2: -2))},
+            {x - R - .1, 0, - (y - (y>0? 0.9: -0.9))}
+          };
+          double tt[3] = {t_begin, t_begin + 1, t_begin + 2};
+          send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_shelf_1_put[y<0? 1: 0], tt, 3);
+          send_gantry_to_states(gantry_joint_trajectory_publisher_, gans ,tt, 2);
+        }
+        else {
+          send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_bin_1_put, t, 2);
+          send_gantry_to_state(gantry_joint_trajectory_publisher_, gan ,t_begin);
+        }
         cnt_1 ++;
         return true;
       }else if(cnt_1 == 1){
         close_gripper(1);
-        part_pose[left_p].push_back(part_pose_del[left_p].back());
+        double y = part_pose_del[left_p].back().y;
+        if(fabs(y) < 3) part_pose[left_p].push_back(part_pose_del[left_p].back());
+        else part_pose_shelf[left_p].push_back(part_pose_del[left_p].back());
         part_pose_del[left_p].pop_back();
         l_invalid = false;
         cnt_1 ++;
-        send_arm_to_state(arm_1_joint_trajectory_publisher_, q_sol_bin_1_put[0], 1);
+        if(fabs(y) <3) send_arm_to_state(arm_1_joint_trajectory_publisher_, q_sol_bin_1_put[0], 1);
+        else send_arm_to_state(arm_1_joint_trajectory_publisher_, q_sol_shelf_1_put[y<0?1:0][0], 1);
         return true;
       }else{
+        if(fabs(arm_1_joint[0]) > PI/2){
+          double gan[3] = {gantry_joint[0], gantry_joint[1], gantry_joint[2] - (gantry_joint[2] > 0 ? 1: -1)};
+          send_gantry_to_state(gantry_joint_trajectory_publisher_, gan, 1);
+          send_arm_to_state(arm_1_joint_trajectory_publisher_, rest_joints_1, 1);
+        }
         cnt_1=0;return true;
       }
     }else if(r_invalid){
@@ -848,19 +1017,38 @@ public:
         };
         double t_begin = max(max(fabs(gan[0] - gantry_joint[0]) / rail_vel, fabs(gan[2] - gantry_joint[2]) / base_vel), 1.7);
         double t[2] = {t_begin, t_begin + 1};
-        send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_bin_2_put, t, 2);
-        send_gantry_to_state(gantry_joint_trajectory_publisher_, gan ,t_begin);
+        if(fabs(y) > 3){
+          double gans[2][3] = {
+            {x + R + .1, 0, - (y - (y>0? 2: -2))},
+            {x + R + .1, 0, - (y - (y>0? 0.9: -0.9))}
+          };
+          double tt[3] = {t_begin, t_begin + 1, t_begin + 2};
+          send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_shelf_2_put[y<0? 1: 0], tt, 3);
+          send_gantry_to_states(gantry_joint_trajectory_publisher_, gans , tt, 2);
+        }
+        else {
+          send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_bin_2_put, t, 2);
+          send_gantry_to_state(gantry_joint_trajectory_publisher_, gan ,t_begin);
+        }
         cnt_2 ++;
         return true;
       }else if(cnt_2 == 1){
         close_gripper(2);
-        part_pose[right_p].push_back(part_pose_del[right_p].back());
+        double y = part_pose_del[right_p].back().y;
+        if(fabs(y)<3) part_pose[right_p].push_back(part_pose_del[right_p].back());
+        else part_pose_shelf[right_p].push_back(part_pose_del[right_p].back());
         part_pose_del[right_p].pop_back();
         r_invalid = false;
         cnt_2 ++;
-        send_arm_to_state(arm_2_joint_trajectory_publisher_, q_sol_bin_2_put[0], 1);
+        if(fabs(y)<3) send_arm_to_state(arm_2_joint_trajectory_publisher_, q_sol_bin_2_put[0], 1);
+        else send_arm_to_state(arm_2_joint_trajectory_publisher_, q_sol_shelf_2_put[y<0?1:0][0], 1);
         return true;
       }else{
+        if(fabs(arm_2_joint[0]) > PI/2){
+          double gan[3] = {gantry_joint[0], gantry_joint[1], gantry_joint[2] - (gantry_joint[2] > 0 ? 1: -1)};
+          send_gantry_to_state(gantry_joint_trajectory_publisher_, gan, 1);
+          send_arm_to_state(arm_2_joint_trajectory_publisher_, rest_joints_2, 1);
+        }
         cnt_2 = 0; return true;   
       }
     }
@@ -1073,15 +1261,15 @@ private:
 
   const double bx[4] = {2.634189, 3.574991, 4.515793, 5.456594};
   const double by[4] = {-2.165594, -1.323536, 1.323536, 2.165594};
-  const double lx[5] = {3.10459, 4.9861935, 3.10459, 4.9861935, 0};
-  const double ly[5] = {1.744565, 1.744565, -1.744565, -1.744565, 3.5};
+  const double lx[6] = {3.10459, 4.9861935, 3.10459, 4.9861935, 0, 3.2};
+  const double ly[6] = {1.744565, 1.744565, -1.744565, -1.744565, 3.5, 3.64};
   const double lz = 1.82;
 
   int bin_type[16] = {0};
-  bool initialized[4] = {0};
+  bool initialized[6] = {false};
   deque<part_bin_pose> part_pose[13];
   deque<part_bin_pose> part_pose_del[13];
-
+  deque<part_bin_pose> part_pose_shelf[13];
   bool manipulate[16] = {false};
 
   deque<part_belt_pose> events; 
@@ -1108,8 +1296,14 @@ private:
   double q_sol_bin_1[4][4][6];
   double q_sol_bin_2[4][4][6];
 
-  double q_sol_bin_1_put[4][6];
-  double q_sol_bin_2_put[4][6];
+  double q_sol_bin_1_put[2][6];
+  double q_sol_bin_2_put[2][6];
+
+  double q_sol_shelf_1[2][4][6][6];
+  double q_sol_shelf_2[2][4][6][6];
+
+  double q_sol_shelf_1_put[2][3][6];
+  double q_sol_shelf_2_put[2][3][6];
   // double q_sol_tray_1[4][4][6];
   // double q_sol_tray_2[4][4][6];
   bool l_invalid=false, r_invalid=false;
@@ -1167,6 +1361,9 @@ int main(int argc, char ** argv) {
   ros::Subscriber logical_camera_5_subscriber = node.subscribe(
     "/ariac/logical_camera_5", 10,
     &MyCompetitionClass::logical_camera_5_callback, &comp_class);
+  ros::Subscriber logical_camera_6_subscriber = node.subscribe(
+    "/ariac/logical_camera_6", 10,
+    &MyCompetitionClass::logical_camera_6_callback, &comp_class);
   // ros::Subscriber laser_profiler_subscriber = node.subscribe(
   //   "/ariac/laser_profiler_1", 10, 
   //   &MyCompetitionClass::laser_profiler_callback, &comp_class);
