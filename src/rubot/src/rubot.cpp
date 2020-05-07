@@ -489,7 +489,7 @@ public:
     initialized[1] = true;
   }
   void logical_camera_3_callback(const nist_gear::LogicalCameraImage::ConstPtr & image_msg){
-    if(initialized[3]) return;
+    if(initialized[2]) return;
     for(const auto &item: image_msg->models){
       tf2::Quaternion tmp1(item.pose.orientation.x,item.pose.orientation.y,
         item.pose.orientation.z, item.pose.orientation.w);
@@ -506,7 +506,7 @@ public:
       bool flipped = (1-2*(x*x + y*y)) < 0;
       part_pose[type].emplace_back(px, py, theta, flipped);
     }
-    initialized[3] = true;
+    initialized[2] = true;
   }
   void logical_camera_4_callback(const nist_gear::LogicalCameraImage::ConstPtr & image_msg){
     if(initialized[3]) return;
@@ -853,11 +853,12 @@ public:
           0, 1, 0, (l_side ? y - 0.214603 : -y + 0.214603),
           0, 0, 1, .1,
         };
+        // cout<<"y = "<<T[7]<<endl;
         double gan[2][3] = {
-          {-R + (l_side ? x: -x) - .1, 0, (l_side? 2.5: -2.5) },
+          {0/*-R + (l_side ? x: -x) - .1*/, 0, (l_side? 2.5: -2.5) },
           {-R + (l_side ? x: -x) - .1, 0, (l_side? 6.9: -6.9)/*-7.114603*/},
         };
-        inverse(T, q_sol[0], 0);
+        // cout<<" sol num = "<< inverse(T, q_sol[0], 0) << endl;
         T[3] = 1.05;
         inverse(T, q_sol[1], 0);
         double dtheta = (l_side ? shipments_2[0].theta[l_id]: -shipments_1[0].theta[l_id]) - l_angle;
@@ -889,16 +890,63 @@ public:
         inverse(T, q_sol, 0);
         send_arm_to_state(arm_1_joint_trajectory_publisher_, q_sol, 1);
         cnt_1++;
-      }else{
-        double q[3]={0,0,0};
+      }else if(cnt_1==2){
+        Shipment * tmp = l_side ? &shipments_2[0]: &shipments_1[0];
+        // cout<<faul_1 << ' '<<l_side <<' '<<faul_2<<endl;
+        if(faul_2 && l_side || faul_1 && !l_side){
+          cout<<"Caught faulty part"<<endl;
+          open_gripper(1);
+          double q_sol[4][6];
+          double x = faul_1_x, y = faul_1_y;
+          if(faul_2 && l_side){
+            x = faul_2_x;
+            y = faul_2_y;
+          }
+          cout<<x<<' '<<y<<endl;
+          double T[12] = {
+            1, 0, 0, 1.1,
+            0, 1, 0, l_side? y - 0.564603 : y + 0.564603,
+            0, 0, 1, .1,
+          };
+          double gan[3] = {-R + x - .1, 0, (l_side? 6.9: -6.9)/*-7.114603*/};
+          inverse(T, q_sol[0], 0);
+          T[3] = 1.225 - part_height[(tmp->obj_t[l_id]-1)/3];
+          inverse(T, q_sol[1], 0);
+          inverse(T, q_sol[2], 0);
+          T[3] = 1.05;
+          inverse(T, q_sol[3], 0);
+          // for(int i=0;i<4;i++){for(int j=0;j<6;j++) cout<<q_sol[i][j]<<' ';cout<<endl;}
+          double t[4] = {1, 3, 4, 5};
+          send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol, t, 4);
+          send_gantry_to_state(gantry_joint_trajectory_publisher_, gan, 1);
+          tmp->finished[l_id] = false;
+          cnt_1 ++ ;
+          return true;
+        }
         // send_gantry_to_state(gantry_joint_trajectory_publisher_, q, 3);
         bool tag = true;
-        Shipment * tmp = l_side ? &shipments_2[0]: &shipments_1[0];
+        
         tmp->finished_2[l_id] = true;
         for(int i=0;i<tmp->finished.size();i++){
           if(tmp->finished_2[i]==false || tmp->invalid[i]){tag=false;break;}
         }
         if(tag) agv(1, l_side ? shipments_2[0].shipment_t: shipments_1[0].shipment_t);
+        cnt_1 = 0;
+        l_id = -1;
+      }else if (cnt_1==3){
+        if(!catched_1){
+          cnt_1=2;
+          return true;
+        }else{
+          cout<<"HERE"<<endl;
+          double gan[3] = {R, 0, l_side? 6.9: -6.9};
+          send_gantry_to_state(gantry_joint_trajectory_publisher_, gan , 0.5);
+          cnt_1++;
+        }
+      }else if(cnt_1 < 16){
+        close_gripper(1);
+        cnt_1 ++;
+      }else{
         cnt_1 = 0;
         l_id = -1;
       }
@@ -916,7 +964,7 @@ public:
         };
         // Time stamp to be modified !!!!!
         double gan[2][3] = {
-          {R + .1 - (r_side ? -x: x), 0, (r_side? 2.5: -2.5) },
+          {0/*R + .1 - (r_side ? -x: x)*/, 0, (r_side? 2.5: -2.5) },
           {R + .1 - (r_side ? -x: x), 0, (r_side? 6.9: -6.9)/*-7.114603*/},
         };
         inverse(T, q_sol[0], 0);
@@ -950,9 +998,36 @@ public:
         inverse(T, q_sol, 0);
         send_arm_to_state(arm_2_joint_trajectory_publisher_, q_sol, 1);
         cnt_2++;
-      }else{
-        double q[3]={0,0,0};
+      }else if(cnt_2==2){
         Shipment * tmp = l_side ? &shipments_2[0]: &shipments_1[0];
+        if(faul_2 && r_side || faul_1 && !r_side){
+          cout<<"Caught faulty part"<<endl;
+          open_gripper(2);
+          double q_sol[4][6];
+          double x = faul_2_x, y = faul_2_y;
+          if(faul_1 && !r_side){
+            x = faul_1_x, y = faul_1_y;
+          }
+          double T[12] = {
+            -1, 0, 0, -1.1,
+            0, 1, 0, r_side ? y - 0.564603: y + 0.564603,
+            0, 0, -1, .1,
+          };
+          double gan[3] = {R + x + .1, 0, (r_side? 6.9: -6.9)};
+          inverse(T, q_sol[0], 0);
+          T[3] = -1.225 + part_height[(tmp->obj_t[r_id]-1)/3];
+          inverse(T, q_sol[1], 0);
+          inverse(T, q_sol[2], 0);
+          T[3] = -1.05;
+          inverse(T, q_sol[3], 0);
+          for(int i=0;i<4;i++){for(int j=0;j<6;j++)cout<< q_sol[i][j] <<' ';cout<<endl;}
+          double t[4] = {1, 3, 4, 5};
+          send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol, t, 4);
+          send_gantry_to_state(gantry_joint_trajectory_publisher_, gan, 1);
+          tmp->finished[r_id] = false;
+          cnt_2 ++ ;
+          return true;
+        }
         tmp->finished_2[r_id] = true;
         bool tag= true;
         for(int i=0;i<tmp->finished.size();i++){
@@ -961,6 +1036,20 @@ public:
         if(tag) agv(2, l_side ? shipments_2[0].shipment_t: shipments_1[0].shipment_t);
         cnt_2 = 0;
         r_id = -1;
+      }else if(cnt_2 == 3){
+        if(!catched_2){
+          cnt_2 = 2; return true;
+        }else{
+          double gan[3] = {-R, 0, r_side? 6.9: -6.9};
+          send_gantry_to_state(gantry_joint_trajectory_publisher_, gan, .5);
+          cnt_2 ++;
+        }
+      }else if(cnt_2 < 16){
+        close_gripper(2);
+        cnt_2 ++;
+      }else {
+        r_id = -1;
+        cnt_2 = 0;
       }
       return true;
     }
@@ -1230,14 +1319,24 @@ public:
       ROS_ERROR_STREAM("Gripper Failed");
     }
   }
-  bool faul_1=false;
-  double faul_1_x=0;
-  double faul_1_y=0;
-  void quality_ctrl_1(const nist_gear::LogicalCameraImage::ConstPtr & image_msg){
+  
+  // quality sensor 1 is above agv 2 ...
 
-  }
   void quality_ctrl_2(const nist_gear::LogicalCameraImage::ConstPtr & image_msg){
-
+    if(image_msg->models.size() == 0) faul_1 = false;
+    else {
+      faul_1 = true;
+      faul_1_x = -image_msg->models[0].pose.position.y;
+      faul_1_y = image_msg->models[0].pose.position.z;
+    }
+  }
+  void quality_ctrl_1(const nist_gear::LogicalCameraImage::ConstPtr & image_msg){
+    if(image_msg->models.size() == 0) faul_2 = false;
+    else {
+      faul_2 = true;
+      faul_2_x = image_msg->models[0].pose.position.y;
+      faul_2_y = -image_msg->models[0].pose.position.z;
+    }
   }
 private:
   ros::Publisher arm_1_joint_trajectory_publisher_;
@@ -1310,6 +1409,15 @@ private:
 
   const double part_height[4] = {0.017, 0.0156, 0.006, 0.07}; // gasket gear piston rod pulley
 
+  bool faul_1=false;
+  int faul_1_t=0;
+  double faul_1_x=0;
+  double faul_1_y=0;
+
+  bool faul_2=false;
+  int faul_2_t=0;
+  double faul_2_x=0;
+  double faul_2_y=0;
 };
 
 

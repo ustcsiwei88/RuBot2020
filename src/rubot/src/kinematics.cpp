@@ -305,7 +305,7 @@ int inverse(const double* T, double* q_sols, double q6_des, bool lin = false) {
           if(q_sols[3]>0) continue;
           if(lin){if(fabs(q_sols[0])> 2) continue;}
           else {if(fabs(q_sols[0])> PI/2) continue;}
-          if(fabs(q_sols[4])> PI/2) continue;
+          if(fabs(q_sols[4])> 2) continue;
           return ++num_sols;
         }
       }
