@@ -168,7 +168,7 @@ public:
     for(int i=0;i<4;i++){
       T[3] = 0.95 - part_height[i] + part_height[3];
       inverse(T, q_sol_belt_1[i][0], 0);
-      T[3] = 1.085 - part_height[i];
+      T[3] = 1.09 - part_height[i];
       inverse(T, q_sol_belt_1[i][1], 0);
       inverse(T, q_sol_belt_1[i][2], 0);
       T[3] = 0.8 - part_height[i] + part_height[3];
@@ -235,7 +235,7 @@ public:
     for(int i=0;i<4;i++){
       T[3] = -0.95 + part_height[i] - part_height[3];
       inverse(T, q_sol_belt_2[i][0], 0);
-      T[3] = -1.085 + part_height[i];
+      T[3] = -1.09 + part_height[i];
       inverse(T, q_sol_belt_2[i][1], 0);
       inverse(T, q_sol_belt_2[i][2], 0);
       T[3] = -0.8 + part_height[i] - part_height[3];
@@ -602,17 +602,17 @@ public:
     if(shipments_2.size()) tmp_list.emplace_back(&shipments_2[0], true);
     for(int i=0;i<events.size();i++){
       for(auto [tmp, side]: tmp_list){
-        tmp = &shipments_1[0];
+        // tmp = &shipments_1[0];
         for(int j=0;j<tmp->obj_t.size();j++){
           if(tmp->finished[j] || tmp->invalid[j] == true)continue;
           if(tmp->obj_t[j] == events[i].type){
-            double t[4] = {2, 2.7, 3.5, 4};
+            double t[4] = {3, 4.5, 5.5, 7};
             if(!catched_1){
               open_gripper(1);
               send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_belt_1[(events[i].type-1)/3], t, 4);
               double nn = (ros::Time::now() - events[i].st).toSec();
               double gan[4][3] = {
-                {- R - .1, 0, -ly[4] + (nn+2.5) * belt_vel}, 
+                {- R - .1, 0, -ly[4] + (nn+3) * belt_vel}, 
                 {- R - .1, 0, -ly[4] + (nn+4.5) * belt_vel}, 
                 {- R - .1, 0, -ly[4] + (nn+5.5) * belt_vel}, 
                 {- R - .1, 0, -ly[4] + (nn+7) * belt_vel}
@@ -628,7 +628,7 @@ public:
               send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_belt_2[(events[i].type-1)/3], t, 4);
               double nn = (ros::Time::now() - events[i].st).toSec();
               double gan[4][3] = {
-                {R + .1, 0, -ly[4] + (nn+2.5) * belt_vel}, 
+                {R + .1, 0, -ly[4] + (nn+3) * belt_vel}, 
                 {R + .1, 0, -ly[4] + (nn+4.5) * belt_vel}, 
                 {R + .1, 0, -ly[4] + (nn+5.5) * belt_vel}, 
                 {R + .1, 0, -ly[4] + (nn+7) * belt_vel}
@@ -849,7 +849,7 @@ public:
         double t1[2] = {5, 7};
         double t2[2] = {2, 5};
         double T[12] = {
-          1, 0, 0, 1.0,
+          1, 0, 0, 0.7,
           0, 1, 0, (l_side ? y - 0.214603 : -y + 0.214603),
           0, 0, 1, .1,
         };
@@ -858,7 +858,7 @@ public:
           {0/*-R + (l_side ? x: -x) - .1*/, 0, (l_side? 2.5: -2.5) },
           {-R + (l_side ? x: -x) - .1, 0, (l_side? 6.9: -6.9)/*-7.114603*/},
         };
-        // cout<<" sol num = "<< inverse(T, q_sol[0], 0) << endl;
+        inverse(T, q_sol[0], 0);
         T[3] = 1.05;
         inverse(T, q_sol[1], 0);
         double dtheta = (l_side ? shipments_2[0].theta[l_id]: -shipments_1[0].theta[l_id]) - l_angle;
@@ -958,7 +958,7 @@ public:
         double t1[2] = {5, 7};
         double t2[2] = {2, 5};
         double T[12] = {
-          -1, 0, 0, -1.0,
+          -1, 0, 0, -0.7,
           0, 1, 0, (r_side ? y - 0.214603: -y + 0.214603),
           0, 0, -1, .1//(r_side ? -x: x),
         };
