@@ -293,8 +293,8 @@ public:
     T[3] = -0.3; inverse(T, q_sol_shelf_2_put[1][1], 0, true);
     T[3] = -0.35; inverse(T, q_sol_shelf_2_put[1][2], 0, true);
 
-    // for(int i=0;i<6;i++)cout<<q_sol_shelf_1[0][0][0][i]<<' ';cout<<endl;
-    // for(int i=0;i<6;i++)cout<<q_sol_shelf_1[0][0][1][i]<<' ';cout<<endl;
+    // for(int i=0;i<6;i++)cout<<q_sol_bin_1[3][3][i]<<' ';cout<<endl;
+    // for(int i=0;i<6;i++)cout<<q_sol_bin_2[3][3][i]<<' ';cout<<endl;
   }
   vector<Shipment> shipments_1, shipments_2;
   int bin_t2int(string s){
@@ -1383,8 +1383,8 @@ private:
 
   deque<part_belt_pose> events; 
 
-  const double rest_joints_1[6] = {-0.192301, -0.733444, 1.56079, -0.827348, 1.3785, 3.14159};
-  const double rest_joints_2[6] = {0.192301, -2.40815, -1.56079, -2.31424, -1.3785, 0};
+  const double rest_joints_1[6] = {-0.204367, -0.908768, 1.66887, -0.760105, 1.36643, 3.14159};
+  const double rest_joints_2[6] = {0.204367, -2.23282, -1.66887, -2.38149, -1.36643, 0};
   const double R = 0.5148;
   State ST = IDLE;
   int l_id=-1, r_id = -1;
