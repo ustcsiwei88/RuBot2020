@@ -168,7 +168,7 @@ public:
     for(int i=0;i<4;i++){
       T[3] = 0.95 - part_height[i] + part_height[3];
       inverse(T, q_sol_belt_1[i][0], 0);
-      T[3] = 1.09 - part_height[i];
+      T[3] = 1.095 - part_height[i];
       inverse(T, q_sol_belt_1[i][1], 0);
       inverse(T, q_sol_belt_1[i][2], 0);
       T[3] = 0.8 - part_height[i] + part_height[3];
@@ -235,7 +235,7 @@ public:
     for(int i=0;i<4;i++){
       T[3] = -0.95 + part_height[i] - part_height[3];
       inverse(T, q_sol_belt_2[i][0], 0);
-      T[3] = -1.09 + part_height[i];
+      T[3] = -1.095 + part_height[i];
       inverse(T, q_sol_belt_2[i][1], 0);
       inverse(T, q_sol_belt_2[i][2], 0);
       T[3] = -0.8 + part_height[i] - part_height[3];
@@ -529,6 +529,9 @@ public:
     }
     initialized[3] = true;
   }
+
+  set<double> belt_set;
+
   void logical_camera_5_callback(const nist_gear::LogicalCameraImage::ConstPtr & image_msg){
     auto current_time = ros::Time::now();
     for(const auto &item: image_msg->models){
@@ -542,13 +545,16 @@ public:
       double theta = atan2(2 * (z*w+x*y), 1-2*(z*z-y*y));
       bool flipped = (1-2*(x*x + y*y)) < 0;
       ros::Time to_z = current_time + ros::Duration((item.pose.position.z) / belt_vel);
-      bool tag = false;
-      for(int i=0;i<events.size();i++){
-        if((to_z - events[i].st).toSec() < .1){
-          tag=true;break;
-        }
-      }
-      if(tag)continue;
+      // bool tag = false;
+      auto it = belt_set.lower_bound((to_z - start_stamp).toSec() - 0.1);
+      if(it != belt_set.end() && fabs(*it - (to_z - start_stamp).toSec()) <  .1) continue;
+      belt_set.insert((to_z - start_stamp).toSec());
+      // for(int i=0;i<events.size();i++){
+      //   if(fabs(to_z - events[i].st).toSec() < .1){
+      //     tag=true;break;
+      //   }
+      // }
+      // if(tag)continue;
       cout<<"coming height "<< item.pose.position.x<<endl;
       events.emplace_back(to_z, type, theta, flipped);
     }
@@ -606,37 +612,41 @@ public:
         for(int j=0;j<tmp->obj_t.size();j++){
           if(tmp->finished[j] || tmp->invalid[j] == true)continue;
           if(tmp->obj_t[j] == events[i].type){
-            double t[4] = {3, 4.5, 5.5, 7};
+            double t[5] = {1, 3, 4.5, 5.5, 7};
             if(!catched_1){
               open_gripper(1);
-              send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_belt_1[(events[i].type-1)/3], t, 4);
+              send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol_belt_1[(events[i].type-1)/3], t+1, 4);
               double nn = (ros::Time::now() - events[i].st).toSec();
-              double gan[4][3] = {
+              double gan[5][3] = {
+                {-R - .1, 0, gantry_joint[2]}, 
                 {- R - .1, 0, -ly[4] + (nn+3) * belt_vel}, 
                 {- R - .1, 0, -ly[4] + (nn+4.5) * belt_vel}, 
                 {- R - .1, 0, -ly[4] + (nn+5.5) * belt_vel}, 
                 {- R - .1, 0, -ly[4] + (nn+7) * belt_vel}
               };
-              send_gantry_to_states(gantry_joint_trajectory_publisher_, gan, t, 4);
+              send_gantry_to_states(gantry_joint_trajectory_publisher_, gan, t, 5);
               l_id = j;
               l_side = side;
               l_angle = events[i].theta;
+              events.erase(events.begin() + i);
               tmp->finished[j] = true;return true;
             }
             else if(!catched_2){
               open_gripper(2);
-              send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_belt_2[(events[i].type-1)/3], t, 4);
+              send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol_belt_2[(events[i].type-1)/3], t+1, 4);
               double nn = (ros::Time::now() - events[i].st).toSec();
-              double gan[4][3] = {
+              double gan[5][3] = {
+                {R + .1, 0, gantry_joint[2]}, 
                 {R + .1, 0, -ly[4] + (nn+3) * belt_vel}, 
                 {R + .1, 0, -ly[4] + (nn+4.5) * belt_vel}, 
                 {R + .1, 0, -ly[4] + (nn+5.5) * belt_vel}, 
                 {R + .1, 0, -ly[4] + (nn+7) * belt_vel}
               };
-              send_gantry_to_states(gantry_joint_trajectory_publisher_, gan, t, 4);
+              send_gantry_to_states(gantry_joint_trajectory_publisher_, gan, t, 5);
               r_id = j;
               r_angle = events[i].theta;
               r_side = side;
+              events.erase(events.begin() + i);
               tmp->finished[j] = true; return true;
             }
           }
@@ -1179,13 +1189,27 @@ public:
     gantry_joint[2] = gantry_current_joint_states_[16]; //torso_rail_joint
     
     if(!arm_1_has_been_zeroed_){
-      send_arm_to_state(arm_1_joint_trajectory_publisher_, rest_joints_1, 0.01);
+      double t[2] = {0.1, 0.2};
+      double q[2][6];
+      memcpy(q[1], rest_joints_1, 6 * sizeof(double));
+      for(int i=0;i<6;i++){
+        q[0][i] = (arm_1_joint[i] + q[1][i] ) / 2 ;
+      }
+      send_arm_to_states(arm_1_joint_trajectory_publisher_, q, t, 2);
+      // send_arm_to_states(arm_1_joint_trajectory_publisher_, rest_joints_1, 0.1);
       if(reached(arm_1_joint_goal, arm_1_joint)){
         arm_1_has_been_zeroed_ = true;
       }
     }
     if(!arm_2_has_been_zeroed_){
-      send_arm_to_state(arm_2_joint_trajectory_publisher_, rest_joints_2, 0.01);
+      double t[2] = {0.1, 0.2};
+      double q[2][6];
+      memcpy(q[1], rest_joints_2, 6 * sizeof(double));
+      for(int i=0;i<6;i++){
+        q[0][i] = (arm_2_joint[i] + q[1][i]) / 2;
+      }
+      send_arm_to_states(arm_2_joint_trajectory_publisher_, q, t, 2);
+      // send_arm_to_states(arm_2_joint_trajectory_publisher_, rest_joints_2, t);
       if(reached(arm_2_joint_goal, arm_2_joint)){
         arm_2_has_been_zeroed_ = true;
       }
