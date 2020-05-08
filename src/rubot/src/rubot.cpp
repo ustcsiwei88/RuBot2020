@@ -893,6 +893,10 @@ public:
       }else if(cnt_1==2){
         Shipment * tmp = l_side ? &shipments_2[0]: &shipments_1[0];
         // cout<<faul_1 << ' '<<l_side <<' '<<faul_2<<endl;
+        if(catched_1){
+          cnt_1 ++;
+          return true;
+        }
         if(faul_2 && l_side || faul_1 && !l_side){
           cout<<"Caught faulty part"<<endl;
           open_gripper(1);
@@ -916,10 +920,11 @@ public:
           T[3] = 1.05;
           inverse(T, q_sol[3], 0);
           // for(int i=0;i<4;i++){for(int j=0;j<6;j++) cout<<q_sol[i][j]<<' ';cout<<endl;}
-          double t[4] = {1, 3, 4, 5};
+          double t[4] = {1, 2 ,3 ,4};
           send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol, t, 4);
           send_gantry_to_state(gantry_joint_trajectory_publisher_, gan, 1);
           tmp->finished[l_id] = false;
+          tmp->finished_2[l_id] = false;
           cnt_1 ++ ;
           return true;
         }
@@ -930,7 +935,7 @@ public:
         for(int i=0;i<tmp->finished.size();i++){
           if(tmp->finished_2[i]==false || tmp->invalid[i]){tag=false;break;}
         }
-        if(tag) agv(1, l_side ? shipments_2[0].shipment_t: shipments_1[0].shipment_t);
+        if(tag) agv(l_side ? 2: 1, l_side ? shipments_2[0].shipment_t: shipments_1[0].shipment_t);
         cnt_1 = 0;
         l_id = -1;
       }else if (cnt_1==3){
@@ -999,7 +1004,11 @@ public:
         send_arm_to_state(arm_2_joint_trajectory_publisher_, q_sol, 1);
         cnt_2++;
       }else if(cnt_2==2){
-        Shipment * tmp = l_side ? &shipments_2[0]: &shipments_1[0];
+        Shipment * tmp = r_side ? &shipments_2[0]: &shipments_1[0];
+        if(catched_2){
+          cnt_2 ++;
+          return true;
+        }
         if(faul_2 && r_side || faul_1 && !r_side){
           cout<<"Caught faulty part"<<endl;
           open_gripper(2);
@@ -1021,10 +1030,11 @@ public:
           T[3] = -1.05;
           inverse(T, q_sol[3], 0);
           for(int i=0;i<4;i++){for(int j=0;j<6;j++)cout<< q_sol[i][j] <<' ';cout<<endl;}
-          double t[4] = {1, 3, 4, 5};
+          double t[4] = {1, 2, 3, 4};
           send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol, t, 4);
           send_gantry_to_state(gantry_joint_trajectory_publisher_, gan, 1);
           tmp->finished[r_id] = false;
+          tmp->finished_2[r_id] = false;
           cnt_2 ++ ;
           return true;
         }
@@ -1033,7 +1043,7 @@ public:
         for(int i=0;i<tmp->finished.size();i++){
           if(tmp->finished_2[i]==false || tmp->invalid[i]){tag=false;break;}
         }
-        if(tag) agv(2, l_side ? shipments_2[0].shipment_t: shipments_1[0].shipment_t);
+        if(tag) agv(r_side ? 2 : 1, r_side ? shipments_2[0].shipment_t: shipments_1[0].shipment_t);
         cnt_2 = 0;
         r_id = -1;
       }else if(cnt_2 == 3){
