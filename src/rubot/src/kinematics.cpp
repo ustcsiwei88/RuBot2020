@@ -302,6 +302,8 @@ int inverse(const double* T, double* q_sols, double q6_des, bool lin = false) {
           q_sols[num_sols*6+4] = q5[i][j]; q_sols[num_sols*6+5] = q6; 
           for(int i=0;i<6;i++) if(q_sols[i]>PI) q_sols[i] -= PI_2;
           if(q_sols[1]>0) continue;
+          if(fabs(T[-11]+1)<0.001 && q_sols[2]>0) continue;//???????
+          if(fabs(T[-11]-1)<0.001 && q_sols[2]<0) continue;//???????
           if(q_sols[3]>0) continue;
           if(lin){if(fabs(q_sols[0])> 2) continue;}
           else {if(fabs(q_sols[0])> PI/2) continue;}
