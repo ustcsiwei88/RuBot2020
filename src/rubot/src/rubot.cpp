@@ -61,12 +61,12 @@ enum PType{
 enum State{
   IDLE = 0,
   ONE = 1,
-  TWO = 2
+  TWO = 2,
   // BELT=1,
   // TRANSFER=2,
   // TRANSIT=3,
   // FAULTY=4,
-  // FLIP=5,
+  FLIP=5,
   // INV=6,
 };
 class Shipment{
@@ -1168,7 +1168,7 @@ public:
         
         tmp->finished_2[l_id] = true;
         for(int i=0;i<tmp->finished.size();i++){
-          if(tmp->finished_2[i]==false || tmp->invalid[i]){tag=false;break;}
+          if(tmp->finished_2[i]==false || tmp->invalid[i]||tmp->flipped[i]==false){tag=false;break;}
         }
         if(tag) agv(l_side ? 2: 1, l_side ? shipments_2[0].shipment_t: shipments_1[0].shipment_t);
         cnt_1 = 0;
@@ -1276,7 +1276,7 @@ public:
         tmp->finished_2[r_id] = true;
         bool tag= true;
         for(int i=0;i<tmp->finished.size();i++){
-          if(tmp->finished_2[i]==false || tmp->invalid[i]){tag=false;break;}
+          if(tmp->finished_2[i]==false || tmp->invalid[i]||tmp->flipped[i]==false){tag=false;break;}
         }
         if(tag) agv(r_side ? 2 : 1, r_side ? shipments_2[0].shipment_t: shipments_1[0].shipment_t);
         cnt_2 = 0;
@@ -1396,8 +1396,204 @@ public:
     }
     return false;
   }
+ double fx,fy,h; 
   bool flip_it(){
+    
+    switch (cnt_1)
+    {
+
+      case 0:{
+      vector<pair<Shipment*, bool>> tmp_list;
+      if(shipments_1.size()) tmp_list.emplace_back(&shipments_1[0], false);
+      if(shipments_2.size()) tmp_list.emplace_back(&shipments_2[0], true);
+      for(auto [tmp, side]: tmp_list){
+        for(int j=0;j<tmp->obj_t.size();j++){
+          if(tmp->flipped[j]==true){
+            cout<<"flipped part detected"<<endl;
+            l_side=side;
+            auto[x,y]=tmp->position[j];
+            double q_sol[2][6];
+        // Time stamp to be modified !!!!!
+            double t1[2] = {5, 7};
+            double t2[2] = {2, 5};
+            double T[12] = {
+              1, 0, 0, 0.7,
+              0, 1, 0, (side ? y - 0.214603 : -y + 0.214603),
+              0, 0, 1, .1,
+            };
+            // cout<<"y = "<<T[7]<<endl;
+            double gan[2][3] = {
+              {0/*-R + (l_side ? x: -x) - .1*/, 0, (side? 2.5: -2.5) },
+              {-R + (side ? x: -x) - .1, 0, (side? 6.9: -6.9)/*-7.114603*/},
+            };
+            inverse(T, q_sol[0], 0);
+            T[3] = 1.05;
+            inverse(T, q_sol[1], 0);
+            send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol, t1, 2);
+            send_gantry_to_state(gantry_joint_trajectory_publisher_, gan[1], 1);
+            cnt_1++;
+            tmp->flipped[j]=false;
+            fx=x;
+            fy=y;
+            h=part_height[(tmp->obj_t[j]-1)/3];
+            
+            cout<<"ENTER FLIP STATE"<<endl;
+            return true;
+            
+          }
+        }
+      }
+      return false;
+      break;
+      }
+    case 1:{
+       open_gripper(1);
+       cout<<"H="<<h<<endl;
+       double T[12] = {
+          1, 0, 0, 1.1,
+          0, 1, 0, (l_side ? fy - 0.214603 : -fy + 0.214603),
+          0, 0, 1, .1,
+        };
+        double q_sol[4][6];
+         double t[4] = {1, 2, 3, 4};
+        inverse(T, q_sol[0], 0);
+        T[3]=1.225-h;
+        inverse(T,q_sol[1],0);
+        inverse(T,q_sol[2],0);
+        T[3]=0.5;
+        inverse(T,q_sol[3],0);
+        send_arm_to_states(arm_1_joint_trajectory_publisher_, q_sol,t, 4);
+        cnt_1++;
+        
+        return true;
+      break;
+      }
+
+
+
+    case 2:{
+      if(catched_1){cout<<"part caught!"<<endl;}
+        else{
+          return true;
+        }
+      double q_sol[6];
+       double T[12] = {
+          0, 0, 1, 0.5,
+          0, 1, 0, R,
+          -1, 0, 0, -0.5,
+        };
+        inverse(T,q_sol,0);
+        send_arm_to_state(arm_1_joint_trajectory_publisher_, q_sol, 2);
+        cnt_1++;
+        return true;
+      break;
+      }
+
+      case 3:{
+        open_gripper(2);
+      double q_sol[4][6];
+       double T[12] = {
+          0, 0, 1, -0.5,
+          0, 1, 0, R,
+          -1, 0, 0, -0.5+h+0.2,
+        };
+        inverse(T,q_sol[0],0);
+        T[11]=-0.5+h+0.003;
+        inverse(T,q_sol[1],0);
+        inverse(T,q_sol[2],0);
+        T[11]=-0.5+h+0.003;
+        inverse(T,q_sol[3],0);
+        double t[4]={1,2,3,4};
+        send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol, t,4);
+        cnt_1++;
+        
+        return true;
+      break;
+      }
+      case 4:{
+        
+        
+        if(catched_2){close_gripper(1);cout<<"flipped!"<<endl;}
+        else
+        {
+          cout<<"NOt caught!"<<endl;
+          return true;
+        }
+        
+ 
+      double q_sol1[6];
+       double T1[12] = {
+          1, 0, 0, 0.7,
+          0, 1, 0, 0,
+          0, 0, 1, 0.1,
+        };
+        inverse(T1,q_sol1,0);
+        double q_sol2[6];
+       double T2[12] = {
+          -1, 0, 0, -.7,
+          0, 1, 0, (l_side ? fy - 0.214603: -fy + 0.214603),
+          0, 0, -1, 0.1,
+        };
+        inverse(T2,q_sol2,0);
+        double t2[2] = {2, 5};
+         double gan[2][3] = {
+          {0/*R + .1 - (r_side ? -x: x)*/, 0, (l_side? 2.5: -2.5) },
+          {R + .1 - (l_side ? -fx: fx), 0, (l_side? 6.9: -6.9)/*-7.114603*/},
+        };
+        send_arm_to_state(arm_1_joint_trajectory_publisher_, q_sol1, 2);
+        send_arm_to_state(arm_2_joint_trajectory_publisher_, q_sol2, 2);
+        send_gantry_to_states(gantry_joint_trajectory_publisher_, gan, t2, 2);
+        cnt_1++;
+        return true;
+        
+      break;
+      }
+
+      case 5:{
+        double q_sol[4][6];
+       double T[12] = {
+          -1, 0, 0, -1.0,
+          0, 1, 0, (l_side ? fy - 0.214603: -fy + 0.214603),
+          0, 0, -1, .1,
+        };
+        inverse(T,q_sol[0],0);
+        T[3]=-1.0;
+        inverse(T,q_sol[1],0);
+        inverse(T,q_sol[2],0);
+        T[3]=-1.1;
+        inverse(T,q_sol[3],0);
+        double t[4]={1,2,3,4};
+        send_arm_to_states(arm_2_joint_trajectory_publisher_, q_sol, t,4);
+        cnt_1++;
+        return true;
+      }
+
+       case 6:{
+        close_gripper(2);
+        double T[12] = {
+          -1, 0, 0, -0.7,
+          0, 1, 0, 0,
+          0, 0, -1, .1,
+        };
+        double q_sol[6];
+        inverse(T, q_sol, 0);
+        send_arm_to_state(arm_2_joint_trajectory_publisher_, q_sol, 1);
+        cnt_1++;
+        return true;
+      break;
+      }
+      
+
+
+    default:
+      cnt_1=0;
+      ST=IDLE;
+      
+      break;
+    }
+    
   }
+  bool sent1=false,sent2=false;
   void gantry_joint_states_callback(const sensor_msgs::JointState::ConstPtr & joint_state_msg){
     // ROS_INFO_STREAM_THROTTLE(10,
     //    "Joint States arm 1 (throttled to 0.1 Hz):\n" << *joint_state_msg);
@@ -1463,10 +1659,35 @@ public:
       }
       if(!reached(arm_1_joint_goal, arm_1_joint) || !reached(arm_2_joint_goal, arm_2_joint) || !reached_g(gantry_joint, gantry_joint_goal)) return;
       cout<<"IDLE"<<endl;
-      do_it();
-      ST = ONE;
+      if(do_it()==false){
+        if(flip_it()==false){
+          if(!sent1&&shipments_1.size()>0){
+            agv(1, shipments_1[0].shipment_t);
+            sent1=true;
+          }
+          if(!sent2&&shipments_2.size()>0){
+            agv(2, shipments_2[0].shipment_t);
+            sent2=true;
+          }
+          ST=ONE;
+        }else
+        {
+         
+          ST=FLIP;
+          return;
+        }
+          
+      }
+      else{
+        ST = ONE;
+      }
       
       break;
+
+       case FLIP:
+        if(!reached(arm_1_joint_goal, arm_1_joint) || !reached(arm_2_joint_goal, arm_2_joint) || !reached_g(gantry_joint, gantry_joint_goal)) return;
+        flip_it();
+        break;
       case ONE:
       // TODO: handle drop
       if(!reached(arm_1_joint_goal, arm_1_joint) || !reached(arm_2_joint_goal, arm_2_joint) || !reached_g(gantry_joint, gantry_joint_goal)) return;
