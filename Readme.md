@@ -1,6 +1,4 @@
-RuBot2020
-
+RuBot 2020
 ---
-
-1. 3rd spot in ARIAC 2020.
-2. Used the code for inverse kinematics from ROS Industrial by Hawkins, Kelsey P. "Analytic inverse kinematics for the universal robots ur-5/ur-10 arms." Georgia Institute of Technology, 2013.
+1. Team RuBot got 3rd spot in ARIAC 2020.
+2. Applied the inverse kinematics for UR10 from ROS Industrial by Hawkins, Kelsey P.
