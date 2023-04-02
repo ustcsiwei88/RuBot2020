@@ -3,7 +3,7 @@ RuBot 2020
 1. Team RuBot got 3rd spot in ARIAC 2020.
 2. Applied the inverse kinematics for UR10 from ROS Industrial by Hawkins, Kelsey P.
 
-For information on environment setup and contest info, please see https://github.com/usnistgov/ARIAC/tree/ariac2020.
+For information on environment setup and contest info, please refer to https://github.com/usnistgov/ARIAC/tree/ariac2020.
 
 ```
 @article{FenGuoBekYu21RCIM,
