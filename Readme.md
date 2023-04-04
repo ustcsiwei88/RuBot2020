@@ -3,6 +3,7 @@ RuBot 2020
 1. Team RuBot got 3rd spot in ARIAC 2020.
 2. For information on environment setup and contest info, please refer to https://github.com/usnistgov/ARIAC/tree/ariac2020.
 
+If you are interested in this project, please consider reading the paper below:
 ```
 @article{FenGuoBekYu21RCIM,
   author = {Si Wei Feng and Teng Guo and Kostas E. Bekris and Jingjin Yu},
